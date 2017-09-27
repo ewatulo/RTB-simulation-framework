@@ -1,3 +1,6 @@
+In git responses <- list of bidding functions in lapply
+In second price auction instead of Null -> invisible()
+
 
 library(compiler)
 f <- function(n, x) for (i in 1:n) x = (1 + x)^(-1)
