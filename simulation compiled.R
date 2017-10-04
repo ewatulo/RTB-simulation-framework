@@ -133,7 +133,7 @@ generate_bidRequests <- function(hours){
   s <- sum(all_uniques, repeated_idfas)
   data_set <- data.table(idfa=as.character(rep(NA, s)), timestamp=as.integer(rep(0, s)), bidFloor=as.double(rep(0, s)))
   
-  lapply(hours, function(x){
+  lapply(seq_len(hours), function(x){
     unique_idfas <- idfas$idfa[sample(1:nrow(idfas), pois$idfas[x]/60, replace = TRUE)]
 
     dup_idfas <- rep(idfa$idfa[1:length(nCol[[x]])], as.vector(nCol[[x]]))
