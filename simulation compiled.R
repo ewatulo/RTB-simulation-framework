@@ -50,9 +50,12 @@ fancy_bidder_function <- function(floor, userid){
   payout <- 1.2
   margin <- 0.4
   price <- payout*(1-margin)
-  k_1 <- -0.5
-  k_2 <- 0.002
-  
+  k_1 <- 0.9
+  k_2 <- 0.0001
+  new_alpha <- 0
+  rate_gap <- 0
+  gamma_par <- 0
+
   evaluation_function <- function(){
     evaluation==0 & time_slot>0
   }
@@ -70,12 +73,11 @@ fancy_bidder_function <- function(floor, userid){
       alpha = (1-margin)*payout-max(selected)
       if (alpha<0){alpha=alpha*(-1)}
       new_alpha <<- alpha
-      return()
     }
     else{
       rate_gap_function()
       gamma_function(time_slot)
-      new_alpha <<- new_alpha + k_1*rate_gap + k_2*gamma_par
+      new_alpha <<- new_alpha - k_1*rate_gap - k_2*gamma_par
     }
   }
   
@@ -111,7 +113,7 @@ fancy_bidder_function <- function(floor, userid){
     if (time_slot>0){
       if (evaluation_function()){
         update_function()}
-        return(bookkeep()*(price-new_alpha))
+      return(bookkeep()*(price - new_alpha))
     }
     else {
       return(bid=budget/target*1000*0.3)}
@@ -133,7 +135,7 @@ generate_bidRequests <- function(hours){
   s <- sum(all_uniques, repeated_idfas)
   data_set <- data.table(idfa=as.character(rep(NA, s)), timestamp=as.integer(rep(0, s)), bidFloor=as.double(rep(0, s)))
   
-  lapply(hours, function(x){
+  lapply(seq_len(hours), function(x){
     unique_idfas <- idfas$idfa[sample(1:nrow(idfas), pois$idfas[x]/60, replace = TRUE)]
 
     dup_idfas <- rep(idfa$idfa[1:length(nCol[[x]])], as.vector(nCol[[x]]))
@@ -169,8 +171,9 @@ auction_engine <- function(timeSpan, Impression_target, spend_budget){
   generate_bidRequests_c(timeSpan)
   l <<- nrow(bid_requests)
   
-  Bidder_responses <<- data.table(bidder1=rep(0, l), fancy_bidder=rep(0, l), default1=rep(0, l), default2=rep(0, l), default3=rep(0, l))
-  system_bidders <<- c('bidder1', 'fancy_bidder', 'default1', 'default2', 'default3')
+  Bidder_responses <<- data.table(bidder1=rep(0, l), fancy_bidder=rep(0, l), default1=rep(0, l), default2=rep(0, l), default3=rep(0, l), waterlevel=rep(0, l))
+  system_bidders <<- c('bidder1', 'fancy_bidder', 'default1', 'default2', 'default3', 'waterlevel')
+  #system_bidders <<- c('bidder1', 'fancy_bidder', 'default1', 'default2', 'default3')
   target <<- NULL
   budget <<- NULL
   
@@ -179,6 +182,7 @@ auction_engine <- function(timeSpan, Impression_target, spend_budget){
   default1 <<- data.table(result=rep(0L, l), CPM=rep(0, l))
   default2 <<- data.table(result=rep(0L, l), CPM=rep(0, l))
   default3 <<- data.table(result=rep(0L, l), CPM=rep(0, l))
+  waterlevel <<- data.table(result=rep(0L, l), CPM=rep(0, l))
   
   auction_number <<- 1L
   ######################################################################################
@@ -252,13 +256,17 @@ get_Bidresponses <- function(floor, device_id){
   c <- default1_function_c(floor, device_id)
   d <- default2_function_c(floor, device_id)
   e <- default3_function_c(floor, device_id)
+  f <- waterlevel_bidder_function_c(floor, device_id)
   
-  combine <- c(a, b, c, d, e)
+  combine <- c(a, b, c, d, e, f)
+  #combine <- c(a, b, c, d, e)
   set(Bidder_responses, as.integer(auction_number), 1L, a)
   set(Bidder_responses, as.integer(auction_number), 2L, b)
   set(Bidder_responses, as.integer(auction_number), 3L, c)
   set(Bidder_responses, as.integer(auction_number), 4L, d)
   set(Bidder_responses, as.integer(auction_number), 5L, e)
+  set(Bidder_responses, as.integer(auction_number), 6L, f)
+  
   ### the option for large number of bidders
   #Bidder_responses[auction_number, (names(Bidder_responses)) := lapply(combine, function(x) x)]
   combine
@@ -280,5 +288,8 @@ df <- data.frame(Bidder_responses$fancy_bidder)
 bid_price <- aggregate(df,list(rep(1:(nrow(df)%/%n+1),each=n,len=nrow(df))),mean)[-1]
 df <- data.frame(winRate=win_rate$result, CPM=win_price, bidPrice=bid_price$Bidder_responses.fancy_bidder)
 df[is.na(df)] <- 0
+library(ggplot2)
 ggplot2::ggplot(df, aes(x=c(1:nrow(df)), y=winRate, color="Win Rate"))+geom_line()+geom_line(aes(y=CPM, color='CPM'))+
   geom_line(aes(y=bidPrice, color='Bid'))+ggtitle(paste("PI Performance; Desired Win rate", optim_winRate))+xlab("time slot")+ylab("Value")+theme_minimal()
+
+ggplot(d[1:112, ], aes(c(1:112), winRate, color="WinRate"))+geom_line()+geom_line(aes(y=CPM, color='CPM'))+geom_line(aes(y=bidPrice, color='bid'))
