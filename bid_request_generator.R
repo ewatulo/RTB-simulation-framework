@@ -41,7 +41,8 @@ generate_bidRequests <- function(hours){
   nCol <- as.list(seq_len(hours))
 
   repeated_idfas <- sum(sapply(seq_len(hours), function(x) {
-    #nCol[[x]] <<-rpois(pois$Pois[x]/10000, 1)+2
+    # nCol[[x]] <<-rpois(pois$Pois[x]/100, 1)+2
+
     nCol[[x]] <<-rpois(pois$Pois[x], 1)+2
     sum(nCol[[x]])}
   ))
@@ -50,8 +51,9 @@ generate_bidRequests <- function(hours){
   data_set <- data.table(idfa=rep(as.character(NA), s), timestamp=rep(0L, s), bidFloor=rep(NaN, s))
 
   lapply(seq_len(hours), function(x){
-    #unique_idfas <- idfas$idfa[sample(1:nrow(idfas), pois$idfas[x]/60, replace = TRUE)]
-    unique_idfas <- idfas$idfa[sample(1:nrow(idfas), pois$idfas[x], replace = TRUE)]
+    # unique_idfas <- idfas$idfa[sample(1:nrow(idfas), pois$idfas[x]/60, replace = TRUE)]
+    unique_idfas <- idfas$idfa[sample(1:nrow(idfas), pois$idfas[x], replace = FALSE)]
+
     
     dup_idfas <- rep(idfa$idfa[1:length(nCol[[x]])], as.vector(nCol[[x]]))
     bids <- c(unique_idfas, dup_idfas)

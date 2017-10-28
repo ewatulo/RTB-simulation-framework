@@ -8,21 +8,24 @@ bidder_base <- function(budget, impression_cap, frequency_cap, bid_requests_coun
   
   bid_responses <- rep(0, bid_requests_count)
   wins <- rep(0, bid_requests_count)
+  notifications <- rep(0L, bid_requests_count)
   
   win_notification <- function(auction_count, CPM, userID){
-    wins[auction_count] <<- 1L #CPM
+    wins[auction_count] <<- CPM
+    notifications[auction_count] <<- 1L
+
     leftImpressions <<- leftImpressions - 1L
     leftBudget <<- leftBudget - CPM/1000
     idfa_count[[userID]] <<- c(idfa_count[[userID]], 1L)
   }
-
+  
   bookkeeper_check <- function(idfa, ...){
-    leftBudget>0 & length(idfa_count[[idfa]])<frequency_cap ## && leftImpressions>=0
+    leftBudget>0 & length(idfa_count[[idfa]])<frequency_cap & leftImpressions>0
   }
   
   bidder <- function(idfa, bidfloor, auction_number){
     if (bookkeeper_check(idfa)){
-      bid <- max(bidding_algo(userid=idfa, floor=bidfloor, auction_number=auction_number, wins=wins), 0)
+      bid <- max(bidding_algo(userid=idfa, floor=bidfloor, auction_number=auction_number, notifications, wins), 0)
     }
     else {bid <- 0 }
     bid_responses[auction_number] <<- bid
@@ -33,16 +36,16 @@ bidder_base <- function(budget, impression_cap, frequency_cap, bid_requests_coun
 
 ## Bidder base for random function
 random_base <- function(bid_requests_count, bidding_algo, name){
-
   bid_responses <- rep(0, bid_requests_count)
   wins <- rep(0, bid_requests_count)
   
   win_notification <- function(auction_count, CPM, userID){
-    wins[auction_count] <<- 1L #CPM
+    wins[auction_count] <<- CPM  #1L
   }
   
   bidder <- function(idfa, bidfloor, auction_number){
-    bid <- max(bidding_algo(userid=idfa, floor=bidfloor, auction_number=auction_number, wins=wins), 0)
+    bid <- max(bidding_algo(userid=idfa, floor=bidfloor, auction_number=auction_number), 0)
+
     bid_responses[auction_number] <<- bid
     bid
   }
@@ -57,6 +60,16 @@ default <- function(constant, margin, payout){
   }
 }
 
+
+## Static function
+static <- function(price, payout){
+  price = price
+  payout = payout
+  function(...){
+    price
+  }
+}
+
 ## Random Function
 randBid <- function(bidsNo, b, e){
   rands <- runif(bidsNo, b, e)
@@ -67,40 +80,29 @@ randBid <- function(bidsNo, b, e){
 
 ## PI controller based function
 PI_base <- function(payout, margin, k_1, k_2, bid_requests, g, target){
-  gamma_par <- 0
-  no_slots <- g/100
+  freq <- 10
+  no_slots <- g/freq
   slot_impr_target <- target/no_slots
-  optim_winRate <- slot_impr_target/100
+  optim_winRate <- slot_impr_target/freq
   price <- payout*(1-margin)
-  rate_gap <- 0
-  gamma_par <- 0
+  new_alpha <- 1
   
-  set <- bid_requests$bidFloor[1:100]
-  set <- set[sort(set)]
-  set <- set[1:slot_impr_target]
-  new_alpha <- (1-margin)*payout-max(set)
-  if (new_alpha<0){new_alpha=new_alpha*(-1)}
-  
-  rate_gap_function <- function(wins){
-    ex_n <- (time_slot-1)*100 + 1
-    n <- time_slot*100
-    currentWinrate <- sum(wins[ex_n:n])/100
-    rate_gap <<- (optim_winRate - currentWinrate)/optim_winRate
-  }
-  
-  gamma_function <- function(wins){
-    #gamma_par <<- sum(wins)/(slot_impr_target * time_slot)
-    x <- slot_impr_target * time_slot
-    gamma_par <<- (x - sum(wins))/(x)
-  }
-  
-  function(userid, floor, auction_number, wins){
-    time_slot <<- auction_number%/%100
-    evaluation <<- auction_number%%100
-    #wins <- wins>0
+  function(userid, floor, auction_number, notifications, ...){
+    time_slot <<- auction_number%/%freq
+    evaluation <<- auction_number%%freq
+    # wins <- wins>0
     if (time_slot>0 & evaluation==0){
-      rate_gap_function(wins)
-      gamma_function(wins)
+      # rate_gap_function(wins)
+      # rate_gap_function <- function(){
+      ex_n <- (time_slot-1)*freq + 1
+      n <- time_slot*freq
+      currentWinrate <- sum(notifications[ex_n:n])/freq
+      rate_gap <- (optim_winRate - currentWinrate)/optim_winRate
+      x <- slot_impr_target * time_slot
+      gamma_par <- (x - sum(notifications))/(x)
+      # }
+      # rate_gap_function()
+
       new_alpha <<- new_alpha + k_1*rate_gap + k_2*gamma_par
     }
     price * new_alpha
@@ -109,44 +111,34 @@ PI_base <- function(payout, margin, k_1, k_2, bid_requests, g, target){
 
 ## PID controller based function
 PID_base <- function(payout, margin, k_1, k_2, k_3, bid_requests, g, target){
-  gamma_par <- 0
-  no_slots <- g/100
+
+  freq <- 10
+  no_slots <- g/freq
   slot_impr_target <- target/no_slots
-  optim_winRate <- slot_impr_target/100
+  optim_winRate <- slot_impr_target/freq
   currentWinrate <- 0
   price <- payout*(1-margin)
-  rate_gap <- 0
-  gamma_par <- 0
-  d_component <- 0
+  new_alpha <- 1
   
-  set <- bid_requests$bidFloor[1:100]
-  set <- set[sort(set)]
-  set <- set[1:slot_impr_target]
-  new_alpha <- (1-margin)*payout-max(set)
-  if (new_alpha<0){new_alpha=new_alpha*(-1)}
-  
-  rate_gap_function <- function(wins){
-    ex_n <- (time_slot-1)*100 + 1
-    n <- time_slot*100
-    old_winRate <- currentWinrate
-    currentWinrate <<- sum(wins[ex_n:n])/100
-    d_component <<- currentWinrate - old_winRate
-    rate_gap <<- (optim_winRate - currentWinrate)/optim_winRate
-  }
-  
-  gamma_function <- function(wins){
-    #gamma_par <<- sum(wins)/(slot_impr_target * time_slot)
-    x <- slot_impr_target * time_slot
-    gamma_par <<- (x - sum(wins))/(x)
-  }
-  
-  function(userid, floor, auction_number, wins){
-    time_slot <<- auction_number%/%100
-    evaluation <<- auction_number%%100
-    #wins <- wins>0
+  function(userid, floor, auction_number, notifications, ...){
+    time_slot <<- auction_number%/%freq
+    evaluation <<- auction_number%%freq
+    # wins <- wins>0
     if (time_slot>0 & evaluation==0){
-      rate_gap_function(wins)
-      gamma_function(wins)
+      # rate_gap_function(wins)
+      # rate_gap_function <- function(){
+      ex_n <- (time_slot-1)*freq + 1
+      n <- time_slot*freq
+      old_winRate <- currentWinrate
+      currentWinrate <<- sum(notifications[ex_n:n])/freq
+      d_component <- currentWinrate - old_winRate
+      rate_gap <- (optim_winRate - currentWinrate)/optim_winRate
+      x <- slot_impr_target * time_slot
+      gamma_par <- (x - sum(notifications))/x
+      # }
+      # rate_gap_function()
+
+
       new_alpha <<- new_alpha + k_1*rate_gap + k_2*gamma_par + k_3*d_component
     }
     price * new_alpha
