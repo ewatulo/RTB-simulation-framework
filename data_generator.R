@@ -16,6 +16,7 @@ data_generator <- function(l){
   
   performance_summary <- auctions %>% group_by(bidder=winner) %>% summarise(Impressions=n(), Spend=sum(CPM)/1000, avgCPM = Spend/Impressions * 1000) %>%
     inner_join(., p, by="bidder") %>% mutate(Profit = Impressions*0.001*payout - Spend)
+
   
   return(list(responses=responses, impressions=impressions, wins=wins, auctions=auctions, performance=performance_summary, payouts=payouts))
 }

@@ -75,6 +75,7 @@ auction_engine <- function(timeSpan, Impression_target, spend_budget){
   
 results <- auction_engine(1, 100000, 105)
 results <- auction_engine(3, 450000, 315)
+
 outcome <- data_generator(results)
 plots <- visualize(TRUE, grouping=10000, outcome)
 })

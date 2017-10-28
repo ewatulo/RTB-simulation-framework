@@ -13,6 +13,7 @@ bidder_base <- function(budget, impression_cap, frequency_cap, bid_requests_coun
   win_notification <- function(auction_count, CPM, userID){
     wins[auction_count] <<- CPM
     notifications[auction_count] <<- 1L
+
     leftImpressions <<- leftImpressions - 1L
     leftBudget <<- leftBudget - CPM/1000
     idfa_count[[userID]] <<- c(idfa_count[[userID]], 1L)
@@ -35,7 +36,6 @@ bidder_base <- function(budget, impression_cap, frequency_cap, bid_requests_coun
 
 ## Bidder base for random function
 random_base <- function(bid_requests_count, bidding_algo, name){
-  
   bid_responses <- rep(0, bid_requests_count)
   wins <- rep(0, bid_requests_count)
   
@@ -45,6 +45,7 @@ random_base <- function(bid_requests_count, bidding_algo, name){
   
   bidder <- function(idfa, bidfloor, auction_number){
     bid <- max(bidding_algo(userid=idfa, floor=bidfloor, auction_number=auction_number), 0)
+
     bid_responses[auction_number] <<- bid
     bid
   }
@@ -58,6 +59,7 @@ default <- function(constant, margin, payout){
     min(constant*floor, (1-margin)*payout)
   }
 }
+
 
 ## Static function
 static <- function(price, payout){
@@ -100,6 +102,7 @@ PI_base <- function(payout, margin, k_1, k_2, bid_requests, g, target){
       gamma_par <- (x - sum(notifications))/(x)
       # }
       # rate_gap_function()
+
       new_alpha <<- new_alpha + k_1*rate_gap + k_2*gamma_par
     }
     price * new_alpha
@@ -108,6 +111,7 @@ PI_base <- function(payout, margin, k_1, k_2, bid_requests, g, target){
 
 ## PID controller based function
 PID_base <- function(payout, margin, k_1, k_2, k_3, bid_requests, g, target){
+
   freq <- 10
   no_slots <- g/freq
   slot_impr_target <- target/no_slots
@@ -133,12 +137,13 @@ PID_base <- function(payout, margin, k_1, k_2, k_3, bid_requests, g, target){
       gamma_par <- (x - sum(notifications))/x
       # }
       # rate_gap_function()
+
+
       new_alpha <<- new_alpha + k_1*rate_gap + k_2*gamma_par + k_3*d_component
     }
     price * new_alpha
   }
 }
-
 
 # bidder_base1 <- function(budget, impression_cap, frequency_cap, bid_requests_count, unique_idfas, bidding_algo, name){
 #   
